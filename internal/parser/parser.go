@@ -6,7 +6,7 @@ import (
 	"github.com/PuerkitoBio/goquery"
 )
 
-func getLinks(html string) ([]string, error) {
+func GetLinks(html string) ([]string, error) {
 	reader := strings.NewReader(html)
 	doc, err := goquery.NewDocumentFromReader(reader)
 

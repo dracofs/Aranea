@@ -4,7 +4,7 @@ import (
 	"net/url"
 )
 
-func normalize(base string, link string) (string, error) {
+func Normalize(base string, link string) (string, error) {
 	baseURL, err := url.Parse(link)
 
 	if err != nil {
