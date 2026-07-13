@@ -6,6 +6,8 @@ import (
 
 func main() {
 	seed := "https/example.com"
+	workers := 5
+
 	c := crawler.NewCrawler(seed)
-	c.Crawl()
+	c.start(workers)
 }
