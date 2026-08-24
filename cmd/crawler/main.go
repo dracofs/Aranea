@@ -2,12 +2,16 @@ package main
 
 import (
 	"ARANEA/internal/crawler"
+	"log"
 )
 
 func main() {
-	seed := "https/example.com"
+	seed := "https://redis.io/"
 	workers := 5
 
-	c := crawler.NewCrawler(seed)
+	c, err := crawler.NewCrawler(seed)
+	if err != nil {
+		log.Fatalf("crawler init: %v", err)
+	}
 	c.Start(workers)
 }

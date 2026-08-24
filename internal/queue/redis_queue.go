@@ -11,13 +11,9 @@ type RedisQueue struct {
 	contxt context.Context
 }
 
-func NewRedisQueue() *RedisQueue {
-	rdb := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-
+func NewRedisQueue(client *redis.Client) *RedisQueue {
 	return &RedisQueue{
-		client: rdb,
+		client: client,
 		contxt: context.Background(),
 	}
 }
@@ -38,4 +34,8 @@ func (q *RedisQueue) Pop() (string, error) {
 
 func (q *RedisQueue) Len() (int64, error) {
 	return q.client.LLen(q.contxt, "crawler_queue").Result()
+}
+
+func (q *RedisQueue) Clear() error {
+	return q.client.Del(q.contxt, "crawler_queue").Err()
 }

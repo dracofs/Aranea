@@ -6,6 +6,7 @@ import (
 	"ARANEA/internal/metrics"
 	"ARANEA/internal/parser"
 	"ARANEA/internal/queue"
+	"ARANEA/internal/redisclient"
 	"ARANEA/internal/utils"
 	"fmt"
 	"log"
@@ -30,15 +31,34 @@ func (c *Crawler) Start(workers int) {
 	select {}
 }
 
-func NewCrawler(seed string) *Crawler {
-	q := queue.NewRedisQueue()
-	s := dedupe.NewRedisSet()
+func NewCrawler(seed string) (*Crawler, error) {
+	rdb, err := redisclient.Connect()
 
-	q.Push(seed)
+	if err != nil {
+		return nil, err
+	}
+
+	q := queue.NewRedisQueue(rdb)
+	s := dedupe.NewRedisSet(rdb)
+
+	if err := q.Clear(); err != nil {
+		return nil, err
+	}
+	if err := s.Clear(); err != nil {
+		return nil, err
+	}
 
 	c := &Crawler{queue: q, set: s}
+
+	if _, err := s.Add(seed); err != nil {
+		return nil, err
+	}
+	if err := q.Push(seed); err != nil {
+		return nil, err
+	}
+
 	c.updateQueueDepth()
-	return c
+	return c, nil
 }
 
 func (c *Crawler) updateQueueDepth() {
@@ -66,8 +86,7 @@ func (c *Crawler) Crawl(index int) {
 		}
 		c.updateQueueDepth()
 
-		c.set.Add(curr)
-		fmt.Println("[Worker %d] Crawling: %s\n", index, curr)
+		fmt.Printf("[Worker %d] Crawling: %s\n", index, curr)
 
 		start := time.Now()
 		content, err := fetcher.Fetch(curr)
@@ -75,6 +94,7 @@ func (c *Crawler) Crawl(index int) {
 
 		if err != nil {
 			metrics.FetchErrors.Inc()
+			log.Printf("[Worker %d] fetch %s: %v", index, curr, err)
 			continue
 		}
 
@@ -83,24 +103,27 @@ func (c *Crawler) Crawl(index int) {
 		links, err := parser.GetLinks(content)
 
 		if err != nil {
+			log.Printf("[Worker %d] parse %s: %v", index, curr, err)
 			continue
 		}
 
 		for _, link := range links {
 			normalized, err := utils.Normalize(curr, link)
-
 			if err != nil {
 				continue
 			}
 
-			exists, err := c.set.Seen(normalized)
+			added, err := c.set.Add(normalized)
 			if err != nil {
-				log.Println("Error checking set")
+				log.Println("Error adding to set")
 				continue
 			}
 
-			if !exists {
-				c.queue.Push(normalized)
+			if added {
+				if err := c.queue.Push(normalized); err != nil {
+					log.Println("Error pushing to queue")
+					continue
+				}
 				c.updateQueueDepth()
 			}
 		}

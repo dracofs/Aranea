@@ -2,6 +2,7 @@ package dedupe
 
 import (
 	"context"
+
 	"github.com/redis/go-redis/v9"
 )
 
@@ -10,16 +11,11 @@ type RedisSet struct {
 	contxt context.Context
 }
 
-func NewRedisSet() *RedisSet {
-	rbd := redis.NewClient(&redis.Options{
-		Addr: "localhost:6379",
-	})
-
+func NewRedisSet(client *redis.Client) *RedisSet {
 	return &RedisSet{
-		client: rbd,
+		client: client,
 		contxt: context.Background(),
 	}
-
 }
 
 func (s *RedisSet) Seen(url string) (bool, error) {
@@ -32,6 +28,14 @@ func (s *RedisSet) Seen(url string) (bool, error) {
 	return exists, nil
 }
 
-func (s *RedisSet) Add(url string) error {
-	return s.client.SAdd(s.contxt, "visited_urls", url).Err()
+func (s *RedisSet) Add(url string) (bool, error) {
+	n, err := s.client.SAdd(s.contxt, "visited_urls", url).Result()
+	if err != nil {
+		return false, err
+	}
+	return n == 1, nil
+}
+
+func (s *RedisSet) Clear() error {
+	return s.client.Del(s.contxt, "visited_urls").Err()
 }
