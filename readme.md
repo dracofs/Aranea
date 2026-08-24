@@ -1,47 +1,84 @@
 # Aranea
 
-Aranea is an experimental distributed web crawler written in Go. Multiple
-processes can share a Redis-backed frontier, claim pages without duplicating
-work, and discover links concurrently.
+A concurrent web crawler written in Go. Workers pull URLs from a Redis queue, fetch pages, extract links, and enqueue unseen URLs while exporting Prometheus metrics.
 
-## Current milestone
+## Tech stack
 
-- Atomic URL deduplication and queue insertion in Redis.
-- Reliable queue semantics: claimed pages remain in an in-flight list until a
-  worker acknowledges them.
-- Configurable worker count, crawl depth, request timeout, and same-host scope.
-- URL resolution, fragment removal, and HTTP(S)-only filtering.
-- Graceful shutdown on `SIGINT` or `SIGTERM`.
-- Focused unit tests for crawl coordination, parsing, fetching, and URLs.
+| Layer | Choice |
+| --- | --- |
+| Language | [Go](https://go.dev/) |
+| Queue & dedupe | [Redis](https://redis.io/) via [go-redis](https://github.com/redis/go-redis) |
+| HTML parsing | [goquery](https://github.com/PuerkitoBio/goquery) |
+| Metrics | [Prometheus](https://prometheus.io/) (`client_golang`) |
+| Infra | Docker Compose (Redis) |
 
-## Run locally
+## Prerequisites
 
-Requirements: Go 1.26+ and Redis 6.2+ (the frontier uses `BLMOVE`).
+- Go 1.22+ (module targets Go 1.26)
+- Docker & Docker Compose (for Redis)
 
-```sh
-go test ./...
-go run ./cmd/crawler \
-  --seed https://example.com \
-  --namespace example-crawl \
-  --workers 5 \
-  --max-depth 2 \
-  --reset
+## Quick start
+
+### 1. Start Redis
+
+```bash
+docker compose up -d
 ```
 
-`--reset` deletes only the three Redis keys under the selected namespace. Do
-not pass it when joining an active crawl. To add another worker process, run the
-same command with the same namespace and omit `--reset`.
+Redis listens on `localhost:6379` by default.
 
-If a process is interrupted while it owns pages, stop all workers and pass
-`--recover` once to return unacknowledged pages to the queue.
+### 2. Run the crawler
 
-Use `go run ./cmd/crawler --help` for all options. The crawler stays on the seed
-hostname by default; pass `--same-host=false` to allow external links.
+```bash
+go run ./cmd/crawler
+```
 
-## Roadmap
+By default this seeds `https://redis.io/` and starts **5** workers (configured in `cmd/crawler/main.go`).
 
-1. Honor `robots.txt`, add per-host rate limits, and implement retries/backoff.
-2. Add Redis integration tests and crash-safe leased claims.
-3. Export Prometheus metrics and provide a Grafana dashboard.
-4. Store parsed pages and index metadata in PostgreSQL.
-5. Containerize the services and deploy worker replicas.
+### 3. Watch metrics
+
+The crawler serves Prometheus metrics at:
+
+```text
+http://localhost:2112/metrics
+```
+
+Useful series:
+
+- `aranea_pages_crawled_total`
+- `aranea_fetch_errors_total`
+- `aranea_queue_depth`
+- `aranea_fetch_duration_seconds`
+
+To scrape with Prometheus, point it at [`prometheus.yaml`](./prometheus.yaml).
+
+## Configuration
+
+| Variable | Default | Description |
+| --- | --- | --- |
+| `REDIS_ADDR` | `localhost:6379` | Redis host:port |
+| `REDIS_PASSWORD` | _(empty)_ | Redis password, if any |
+
+Example:
+
+```bash
+REDIS_ADDR=localhost:6379 go run ./cmd/crawler
+```
+
+## Project layout
+
+```text
+cmd/crawler/          # entrypoint
+internal/crawler/     # crawl loop & worker orchestration
+internal/fetcher/     # HTTP fetch
+internal/parser/      # link extraction
+internal/queue/       # Redis URL queue
+internal/dedupe/      # Redis visited-set
+internal/metrics/     # Prometheus metrics
+internal/redisclient/ # Redis connection helper
+internal/utils/       # URL normalization
+```
+
+## License
+
+See [LICENSE](./LICENSE).
