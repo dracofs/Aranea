@@ -7,7 +7,7 @@ import (
 )
 
 type RedisQueue struct {
-	client* redis.Client
+	client *redis.Client
 	contxt context.Context
 }
 
@@ -22,7 +22,7 @@ func NewRedisQueue() *RedisQueue {
 	}
 }
 
-func (q *RedisQueue) Push (url string) error {
+func (q *RedisQueue) Push(url string) error {
 	return q.client.LPush(q.contxt, "crawler_queue", url).Err()
 }
 
@@ -34,4 +34,8 @@ func (q *RedisQueue) Pop() (string, error) {
 	}
 
 	return result[1], nil
+}
+
+func (q *RedisQueue) Len() (int64, error) {
+	return q.client.LLen(q.contxt, "crawler_queue").Result()
 }

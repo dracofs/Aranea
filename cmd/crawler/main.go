@@ -1,4 +1,4 @@
-package crawler
+package main
 
 import (
 	"ARANEA/internal/crawler"
@@ -9,5 +9,5 @@ func main() {
 	workers := 5
 
 	c := crawler.NewCrawler(seed)
-	c.start(workers)
+	c.Start(workers)
 }
