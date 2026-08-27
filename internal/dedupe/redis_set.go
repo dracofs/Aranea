@@ -36,6 +36,16 @@ func (s *RedisSet) Add(url string) (bool, error) {
 	return n == 1, nil
 }
 
+func (s *RedisSet) Len() (int64, error) {
+	res, err := s.client.LLen(s.contxt, "visited_urls").Result()
+
+	if err != nil {
+		return -1, err
+	}
+
+	return res, nil
+}
+
 func (s *RedisSet) Clear() error {
 	return s.client.Del(s.contxt, "visited_urls").Err()
 }

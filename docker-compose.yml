@@ -11,5 +11,23 @@ services:
       timeout: 3s
       retries: 5
 
+  prometheus:
+    image: prom/prometheus:v2.55.1
+    container_name: prometheus
+    ports:
+      - "9090:9090"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    env_file:
+      - .env
+    volumes:
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        printf '%s' "$$GRAFANA_CLOUD_USERNAME" > /tmp/grafana_username
+        printf '%s' "$$GRAFANA_CLOUD_PASSWORD" > /tmp/grafana_password
+        exec /bin/prometheus --config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --web.enable-lifecycle --storage.tsdb.retention.time=2h
+
 volumes:
   redis-data:
